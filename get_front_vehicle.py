@@ -31,6 +31,7 @@ def get_front_vehicle(lane_path, vehicle_list, ego_vehicle):
     front_vehicle_id = v2lane_front[np.argmin(v2lane_front[:, 2])][0]
     
     print("front vehicle id is:", front_vehicle_id)
+    return vehicle_list[front_vehicle_id]
     
 
 if __name__ == '__main__':
