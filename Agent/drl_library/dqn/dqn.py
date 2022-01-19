@@ -66,7 +66,6 @@ class DQN():
         
     def compute_td_loss(self, batch_size, beta, gamma):
         state, action, reward, next_state, done, indices, weights = self.replay_buffer.sample(batch_size, beta) 
-        # state, action, reward, next_state, done = self.replay_buffer.sample() 
 
         state      = Variable(torch.FloatTensor(np.float32(state)))
         next_state = Variable(torch.FloatTensor(np.float32(next_state)))
@@ -77,18 +76,17 @@ class DQN():
 
         q_values      = self.current_model(state)
         next_q_values = self.target_model(next_state)
-        # q_value          = q_values.gather(1, action.unsqueze(1)).squeeze(1)
         q_value          = q_values.gather(1, action.unsqueeze(1)).squeeze(1)
         next_q_value     = next_q_values.max(1)[0]
         expected_q_value = reward + gamma * next_q_value * (1 - done)
-        print("q_value",q_value, expected_q_value)
+        # print("q_value",q_value, expected_q_value)
         loss  = (q_value - expected_q_value.detach()).pow(2) * weights
         prios = loss + 1e-5
         loss  = loss.mean()
             
         self.optimizer.zero_grad()
         loss.backward()
-        # self.replay_buffer.update_priorities(indices, prios.data.cpu().numpy())
+        self.replay_buffer.update_priorities(indices, prios.data.cpu().numpy())
         self.optimizer.step()
         
         return loss
@@ -107,10 +105,12 @@ class DQN():
         beta_frames = 1000  
         return min(1.0, beta_start + frame_idx * (1.0 - beta_start) / beta_frames)
     
-    def train(self, num_frames, gamma):
+    def train(self, load_step, num_frames, gamma):
         losses = []
         all_rewards = []
         episode_reward = 0
+        
+        self.load(load_step)
         
         # Create Agent
         trajectory_planner = JunctionTrajectoryPlanner()
@@ -118,14 +118,14 @@ class DQN():
         dynamic_map = DynamicMap()
 
         obs = self.env.reset()
-        for frame_idx in range(1, num_frames + 1):
+        for frame_idx in range(0, num_frames + 1):
 
             obs = np.array(obs)
             dynamic_map.update_map_from_obs(obs, self.env)
             rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
             
             # Dqn
-            epsilon = self.epsilon_by_frame(frame_idx)
+            epsilon = self.epsilon_by_frame(load_step + frame_idx)
             dqn_action = self.current_model.act(obs, epsilon)
 
             rule_trajectory = trajectory_planner.trajectory_update_CP(dqn_action, rule_trajectory)
@@ -133,9 +133,8 @@ class DQN():
             control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
             action = [control_action.acc, control_action.steering]
             new_obs, reward, done, _ = self.env.step(action)
-            print("Dqn action",dqn_action)
-            # print("dqn reward",reward)
-            # print("dqn obs",obs)
+            print("[DQN]: ----> RL Action",dqn_action)
+
             # self.replay_buffer.add(obs, np.array([dqn_action]), np.array([reward]), new_obs, np.array([done]))
             self.replay_buffer.push(obs, dqn_action, reward, new_obs, done)
             
@@ -149,13 +148,46 @@ class DQN():
                 all_rewards.append(episode_reward)
                 episode_reward = 0
                 
-            if frame_idx > self.batch_size:
-                beta = self.beta_by_frame(frame_idx)
+            if (load_step + frame_idx) > self.batch_size:
+                beta = self.beta_by_frame(load_step + frame_idx)
                 loss = self.compute_td_loss(self.batch_size, beta, gamma)
                 # losses.append(loss.data[0])
                 
             # if frame_idx % 200 == 0:
             #     plot(frame_idx, all_rewards, losses)
                 
-            if frame_idx % 1000 == 0:
+            if (load_step + frame_idx) % 10000 == 0:
                 self.update_target(self.current_model, self.target_model)
+                self.save(frame_idx)
+
+    def save(self, step):
+        torch.save(
+            self.current_model.state_dict(),
+            'saved_model/current_model_%s.pt' % (step)
+        )
+        torch.save(
+            self.target_model.state_dict(),
+            'saved_model/target_model_%s.pt' % (step)
+        )
+        torch.save(
+            self.replay_buffer,
+            'saved_model/replay_buffer_%s.pt' % (step)
+        )
+        
+    def load(self, load_step):
+        try:
+            self.current_model.load_state_dict(
+            torch.load('saved_model/current_model_%s.pt' % (load_step))
+            )
+
+            self.target_model.load_state_dict(
+            torch.load('saved_model/target_model_%s.pt' % (load_step))
+            )
+            
+            self.replay_buffer = torch.load('saved_model/replay_buffer_%s.pt' % (load_step))
+        
+            print("[DQN] : Load learned model successful, step=",load_step)
+        except:
+            load_step = 0
+            print("[DQN] : No learned model, Creat new model")
+        return load_step

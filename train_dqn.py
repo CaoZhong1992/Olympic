@@ -38,7 +38,7 @@ if __name__ == '__main__':
     env = CarEnv_05_Round()
 
     model = DQN(env, batch_size=2)
-    model.train(num_frames=10000,  gamma=0.99)
+    model.train(load_step=20000, num_frames=300000,  gamma=0.99)
     # model.save("dqn_cartpole")
         
 

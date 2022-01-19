@@ -258,7 +258,6 @@ class CarEnv_05_Round:
             state[8] = front_velocity * math.sin(front_yaw)
             state[9] = front_yaw
             # state[2] = self.ego_vehicle.get_location().distance(front_vehicle.get_transform())
-        print("state",state)
 
         return state
 

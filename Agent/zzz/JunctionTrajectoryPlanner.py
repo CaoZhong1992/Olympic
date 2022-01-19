@@ -107,20 +107,20 @@ class JunctionTrajectoryPlanner(object):
                 trajectory_array = trajectory_array_ori#dense_polyline2d(trajectory_array_ori,1)
                 self.last_trajectory_array_rule = trajectory_array
                 self.last_trajectory_rule = generated_trajectory     
-                print("[UBP]: ----> Werling Successful Planning")
+                print("[DQN]: ----> Werling Successful Planning")
             
             elif len(self.last_trajectory_rule.s_d) > 5 and self.c_speed > 1:
                 generated_trajectory = self.last_trajectory_rule
 
                 trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
                 desired_speed =  [0] * len(generated_trajectory.s_d)
-                print("[UBP]: ----> Werling Fail to find a solution")
+                print("[DQN]: ----> Werling Fail to find a solution")
 
             else:
                 generated_trajectory =  self.all_trajectory[0][0]
                 trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
                 desired_speed = [0] * len(trajectory_array)
-                print("[UBP]: ----> Werling Output ref path")
+                print("[DQN]: ----> Werling Output ref path")
 
             # desired spped is calculate from frenet path, but sometimes frenet path is much longger than real path(spline2D), so we need to cut value in frenet according to th length of spline2D
             desired_speed = desired_speed[:len(trajectory_array)]
