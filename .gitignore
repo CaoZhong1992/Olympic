@@ -2,3 +2,5 @@
 saved_model/
 
 record.txt
+
+**/__pycache__

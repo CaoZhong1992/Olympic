@@ -107,20 +107,20 @@ class JunctionTrajectoryPlanner(object):
                 trajectory_array = trajectory_array_ori#dense_polyline2d(trajectory_array_ori,1)
                 self.last_trajectory_array_rule = trajectory_array
                 self.last_trajectory_rule = generated_trajectory     
-                print("[DQN]: ----> Werling Successful Planning")
+                # print("[DQN]: ----> Werling Successful Planning")
             
             elif len(self.last_trajectory_rule.s_d) > 5 and self.c_speed > 1:
                 generated_trajectory = self.last_trajectory_rule
 
                 trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
                 desired_speed =  [0] * len(generated_trajectory.s_d)
-                print("[DQN]: ----> Werling Fail to find a solution")
+                # print("[DQN]: ----> Werling Fail to find a solution")
 
             else:
                 generated_trajectory =  self.all_trajectory[0][0]
                 trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
                 desired_speed = [0] * len(trajectory_array)
-                print("[DQN]: ----> Werling Output ref path")
+                # print("[DQN]: ----> Werling Output ref path")
 
             # desired spped is calculate from frenet path, but sometimes frenet path is much longger than real path(spline2D), so we need to cut value in frenet according to th length of spline2D
             desired_speed = desired_speed[:len(trajectory_array)]
@@ -132,15 +132,62 @@ class JunctionTrajectoryPlanner(object):
         else:
             return None
 
+    # def generation_control_signal_of_action(self, DQN_action, dynamic_map):
+
+    #     if self.initialize(dynamic_map):
+    #         start_state = self.calculate_start_state(dynamic_map)
+    #         generated_trajectory, index = self.frenet_optimal_planning(self.csp, self.c_speed, start_state)
+            
+    #         if generated_trajectory is not None:
+    #             k = min(len(generated_trajectory.s_d),5)-1
+    #             trajectory_array_ori = np.c_[generated_trajectory.x, generated_trajectory.y]
+    #             trajectory_array = trajectory_array_ori #dense_polyline2d(trajectory_array_ori,1)
+    #             # self.last_trajectory_array_rule = trajectory_array
+    #             # self.last_trajectory_rule = generated_trajectory     
+    #             # print("[DQN]: ----> Werling Successful Planning")
+            
+    #         elif len(self.last_trajectory_rule.s_d) > 5 and self.c_speed > 1:
+    #             generated_trajectory = self.last_trajectory_rule
+    #             trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
+    #             # print("[DQN]: ----> Werling Fail to find a solution")
+
+    #         if DQN_action == 0:
+    #             desired_speed = self.c_speed - 2
+        
+    #         if DQN_action == 1:
+    #             desired_speed = self.c_speed
+        
+    #         if DQN_action == 2:
+    #             desired_speed = self.c_speed + 2
+                
+    #         desired_speed_array = [desired_speed] * len(trajectory_array)
+    #         print("DQN", len(desired_speed_array), len(trajectory_array))
+    #         print("DQN SPEED", desired_speed_array)
+    #         trajectory, velocity_trajectory = dense_polyline2d_withvelocity(trajectory_array, np.array(desired_speed_array), 0.2)
+    #         trajectory_action = TrajectoryAction(trajectory_array, velocity_trajectory)
+        
+            
     def trajectory_update_CP(self, CP_action, rule_trajectory, update=True):
+        
         if CP_action == 0:
+            desired_speed = max(0, (self.c_speed - 3))
+        
+        if CP_action == 1:
+            desired_speed = self.c_speed
+        
+        if CP_action == 2:
+            desired_speed = min(20/3.6, self.c_speed + 3)
+        
+        
+        if True: # CP_action == 0:
             # print("[CP]:----> Brake") 
             generated_trajectory =  self.all_trajectory[0][0]
             trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
-            trajectory_action = TrajectoryAction(trajectory_array, [0] * len(trajectory_array))
-            return trajectory_action          
-            
-        fplist = self.all_trajectory  
+            trajectory_action = TrajectoryAction(trajectory_array, [desired_speed] * len(trajectory_array))
+            return trajectory_action       
+        
+           
+        fplist = self.all_trajectory
         bestpath = fplist[int(CP_action - 1)][0]
         bestpath.s_d
         trajectory_array = np.c_[bestpath.x, bestpath.y]
@@ -151,7 +198,8 @@ class JunctionTrajectoryPlanner(object):
             self.last_trajectory_rule = bestpath 
 
         trajectory_action = TrajectoryAction(trajectory_array, bestpath.s_d[:len(trajectory_array)])
-        # print("[CP]: ------> CP Successful Planning")           
+        # print("[CP]: ------> CP Successful Planning")     
+              
         return trajectory_action
 
     def initialize(self, dynamic_map):
