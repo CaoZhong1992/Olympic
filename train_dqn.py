@@ -9,6 +9,6 @@ if __name__ == '__main__':
     
     env = CarEnv_05_Round()
 
-    model = DQN(env, batch_size=2)
-    model.train(load_step=70000, num_frames=300000,  gamma=0.99)
+    model = DQN(env, batch_size=20)
+    model.train(load_step=0, num_frames=300000,  gamma=0.99)
     # model.save("dqn_cartpole")

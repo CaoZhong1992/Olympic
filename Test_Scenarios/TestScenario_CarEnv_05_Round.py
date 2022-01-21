@@ -27,6 +27,7 @@ from agents.navigation.global_route_planner import GlobalRoutePlanner
 from Agent.zzz.dynamic_map import Lanepoint, Lane, Vehicle
 from Agent.zzz.tools import *
 from geometry import dist_from_point_to_polyline, dense_polyline
+from Planning_library.coordinates import Coordinates
 
 global x_max
 x_max = 90
@@ -73,7 +74,7 @@ class CarEnv_05_Round:
             self.world = self.client.load_world('Town05')
         self.world.set_weather(carla.WeatherParameters(cloudiness=50, precipitation=10.0, sun_altitude_angle=30.0))
         settings = self.world.get_settings()
-        settings.no_rendering_mode = True
+        settings.no_rendering_mode = False
         self.dt = 0.1
         settings.fixed_delta_seconds = self.dt # Warning: When change simulator, the delta_t in controller should also be change.
         settings.substepping = True
@@ -224,40 +225,44 @@ class CarEnv_05_Round:
     def ego_vehicle_collision(self, event):
         self.ego_vehicle_collision_sign = True
 
-    def wrap_state(self):
+    def wrap_state(self, use_ego_coordinate = True):
         # state = [0 for i in range((OBSTACLES_CONSIDERED + 1) * 4)]
-        state  = []
-        state_vehicle = []
+        state_ori  = []
+        attention_vehicles = []
 
-        state.append(self.ego_vehicle.get_location().x)
-        state.append(self.ego_vehicle.get_location().y)
-        state.append(self.ego_vehicle.get_velocity().x)
-        state.append(self.ego_vehicle.get_velocity().y)
-        state.append(self.ego_vehicle.get_transform().rotation.yaw / 180.0 * math.pi)
- 
+        ego_vehicle_state = [self.ego_vehicle.get_location().x,
+                             self.ego_vehicle.get_location().y,
+                             self.ego_vehicle.get_velocity().x,
+                             self.ego_vehicle.get_velocity().y,
+                             self.ego_vehicle.get_transform().rotation.yaw / 180.0 * math.pi]
+
+        state_ori.append(ego_vehicle_state)
+        
+
         actor_list = self.world.get_actors()
         vehicle_list = actor_list.filter("*vehicle*")
         front_vehicle = self.get_front_vehicle(self.real_time_ref_path_array, vehicle_list)
         closest_vehicle_list = self.get_closest_vehicle(vehicle_list)
         
         if front_vehicle is not None:
-            state_vehicle.append(front_vehicle)
+            attention_vehicles.append(front_vehicle)
         
         for vehicle in closest_vehicle_list:
             if front_vehicle is not None and vehicle.id == front_vehicle.id:
                 continue
-            state_vehicle.append(vehicle)
+            attention_vehicles.append(vehicle)
+            
+        for vehicle in attention_vehicles:
+            vehicle_state = [vehicle.get_location().x,
+                             vehicle.get_location().y,
+                             vehicle.get_velocity().x,
+                             vehicle.get_velocity().y,
+                             vehicle.get_transform().rotation.yaw / 180.0 * math.pi]
+            
+            state_ori.append(vehicle_state)
         
-        for vehicle in state_vehicle:
-            state.append(vehicle.get_location().x)
-            state.append(vehicle.get_location().y)
-            state.append(vehicle.get_velocity().x)
-            state.append(vehicle.get_velocity().y)
-            state.append(vehicle.get_transform().rotation.yaw / 180.0 * math.pi)
-
-        state = np.array(state)
-        self.state_vehicle = state_vehicle
-
+        self.attention_vehicles = attention_vehicles
+        
         if self.should_debug:
             for point in self.real_time_ref_path_array:
                 self.debug.draw_point(carla.Location(x=point[0],y=point[1],z=0),size=0.05,color=carla.Color(r=255,g=255,b=255),life_time = 0.5)
@@ -266,11 +271,18 @@ class CarEnv_05_Round:
                 fv_loc = front_vehicle.get_location()
                 self.debug.draw_point(carla.Location(x=fv_loc.x,y=fv_loc.y,z=fv_loc.z+1), life_time=0.5)
                 
-            # for vehicle in state_vehicle:
-            #     self.debug.draw_line(vehicle.get_location(),
-            #                      self.ego_vehicle.get_location(), thickness=1, life_time=0.5)
 
-        return state
+        if use_ego_coordinate:
+            state = []
+            for v_state in state_ori:
+                ego_vehicle_coordiate = Coordinates(ego_vehicle_state[0],ego_vehicle_state[1],ego_vehicle_state[4])                
+                state.append(list(ego_vehicle_coordiate.transfer_coordinate(v_state[0],v_state[1],
+                                                                         v_state[2],v_state[3],
+                                                                         v_state[4])))
+        else:
+            state = state_ori
+
+        return np.array(state).flatten(), np.array(state_ori).flatten()
 
     def draw_attenton(self, ego_attention):
     
@@ -278,7 +290,7 @@ class CarEnv_05_Round:
         norm_ego_attention = sum_ego_attention/max(abs(sum_ego_attention))
         
         if self.should_debug:
-            for v_i, vehicle in enumerate(self.state_vehicle):
+            for v_i, vehicle in enumerate(self.attention_vehicles):
                 if not vehicle.is_alive:
                     continue
                 thickness = float(max(0.2, abs(norm_ego_attention[v_i+1])))
@@ -391,14 +403,14 @@ class CarEnv_05_Round:
         
         self.world.tick()
         # State
-        state = self.wrap_state()
+        state, state_ori = self.wrap_state()
 
         # Record
         self.record_information_txt()
         self.task_num += 1
         self.case_id += 1
 
-        return state
+        return state, state_ori
     
     def step(self, action, **kw):
         # Control ego vehicle
@@ -406,13 +418,14 @@ class CarEnv_05_Round:
         brake = max(0,-float(action[0])) # range [0,1]
         steer = action[1] # range [-1,1]
         self.ego_vehicle.apply_control(carla.VehicleControl(throttle = throttle, brake = brake, steer = steer))
-        self.spawn_random_veh()
-        self.draw_attenton(kw['ego_attention'])
+        # self.spawn_random_veh()
+        # self.draw_attenton(kw['ego_attention'])
+        print("ego_attention:", kw['ego_attention'])
         
         self.world.tick()
 
         # State
-        state = self.wrap_state()
+        state, state_ori = self.wrap_state()
 
         reward = self.reward_function(state)
         
@@ -433,7 +446,7 @@ class CarEnv_05_Round:
             reward = 0.0
             print("[CARLA]: Stuck!")
 
-        return state, reward, done, None
+        return state, reward, done, state_ori
 
     def reward_function(self, state):
         v = math.sqrt(state[2]**2 + state[3]**2)

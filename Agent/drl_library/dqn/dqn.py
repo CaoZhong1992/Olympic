@@ -68,17 +68,17 @@ class Q_network(nn.Module):
         
         return ego_atten_result
         
-    
-    def act(self, state, epsilon):
+    def act(self, state, epsilon, no_explore = True):
+        
+        state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
+        q_value = self.forward(state).unsqueeze(0)
+        print("q_value", q_value.unsqueeze(0))
+        
         if random.random() > epsilon:
-            state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
-            
-            q_value = self.forward(state).unsqueeze(0)
-            # q_value_temp = q_value.unsqueeze(0)
-            # print("q_value", q_value_temp)
             action  = q_value.max(1)[1].data[0]
         else:
             action = random.randrange(self.num_actions)
+        
         return action
     
 class DQN():
@@ -134,9 +134,9 @@ class DQN():
         target_model.load_state_dict(current_model.state_dict())
     
     def epsilon_by_frame(self, frame_idx):
-        epsilon_start = 1.0
-        epsilon_final = 0.01
-        epsilon_decay = 500
+        epsilon_start = 0.9
+        epsilon_final = 0.1
+        epsilon_decay = 1000000
         return epsilon_final + (epsilon_start - epsilon_final) * math.exp(-1. * frame_idx / epsilon_decay)
     
     def beta_by_frame(self, frame_idx):
@@ -156,11 +156,13 @@ class DQN():
         controller = Controller()
         dynamic_map = DynamicMap()
 
-        obs = self.env.reset()
+        obs, obs_ori = self.env.reset()
+        
         for frame_idx in range(load_step, load_step+num_frames + 1):
-
+            
             obs = np.array(obs)
-            dynamic_map.update_map_from_obs(obs, self.env)
+            obs_ori = np.array(obs_ori)
+            dynamic_map.update_map_from_obs(obs_ori, self.env)
             
             # Dqn
             epsilon = self.epsilon_by_frame(frame_idx)
@@ -176,17 +178,19 @@ class DQN():
             control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
             action = [control_action.acc, control_action.steering]
 
-            new_obs, reward, done, _ = self.env.step(action, ego_attention = ego_attention)
+            new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
             # print("[DQN]: ----> RL Action",dqn_action)
 
             # self.replay_buffer.add(obs, np.array([dqn_action]), np.array([reward]), new_obs, np.array([done]))
             self.replay_buffer.push(obs, dqn_action, reward, new_obs, done)
             
             obs = new_obs
+            obs_ori = new_obs_ori
+            
             episode_reward += reward
             
             if done:
-                obs = self.env.reset()
+                obs, obs_ori = self.env.reset()
                 trajectory_planner.clear_buff(clean_csp=True)
 
                 all_rewards.append(episode_reward)
