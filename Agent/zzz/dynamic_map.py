@@ -99,7 +99,6 @@ class DynamicMap():
             vehicle.vx = obs[2+5+5*i]
             vehicle.vy = obs[3+5+5*i]
             vehicle.lane_idx = 0
-
             vehicle.v = math.sqrt(vehicle.vx ** 2 + vehicle.vy ** 2)
 
             

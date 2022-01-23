@@ -102,6 +102,7 @@ class CarEnv_05_Round:
 
         # RL settingss
         self.action_space = spaces.Discrete(3)
+        self.action_num = 3
         self.low  = np.array([0,  0, 0, 0, 0,0,  0, 0, 0, 0], dtype=np.float64)
         self.high = np.array([1,  1, 1, 1, 1,1,  1, 1, 1, 1], dtype=np.float64)    
         self.observation_space = spaces.Box(self.low, self.high, dtype=np.float64)
@@ -420,7 +421,7 @@ class CarEnv_05_Round:
         self.ego_vehicle.apply_control(carla.VehicleControl(throttle = throttle, brake = brake, steer = steer))
         # self.spawn_random_veh()
         # self.draw_attenton(kw['ego_attention'])
-        print("ego_attention:", kw['ego_attention'])
+        # print("ego_attention:", kw['ego_attention'])
         
         self.world.tick()
 
@@ -450,7 +451,8 @@ class CarEnv_05_Round:
 
     def reward_function(self, state):
         v = math.sqrt(state[2]**2 + state[3]**2)
-        reward = math.exp(v-30/3.6)
+        reward = 10* math.sqrt(v)
+        # math.exp(v-30/3.6)
         
         return reward
 
