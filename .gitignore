@@ -3,4 +3,6 @@ saved_model/
 
 record.txt
 
+trustset/
+
 **/__pycache__

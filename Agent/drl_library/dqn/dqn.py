@@ -1,7 +1,6 @@
 
 import math, random
 
-import gym
 import numpy as np
 
 import torch
@@ -9,6 +8,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.autograd as autograd 
 import torch.nn.functional as F
+
+from Planning_library.trustset import Trustset
 
 from Agent.drl_library.dqn.replay_buffer import NaivePrioritizedBuffer, Replay_Buffer
 from Agent.zzz.JunctionTrajectoryPlanner import JunctionTrajectoryPlanner
@@ -68,20 +69,68 @@ class Q_network(nn.Module):
         
         return ego_atten_result
         
-    def act(self, state, epsilon, action_num = 3, c = 0.1):
+    def encoded_state(self, x):
+        n = int(len(x[0])/5)
+        x = torch.reshape(x, [n,5]).unsqueeze(0)
+
+        query = self.q_lin(x)
+        key = self.k_lin(x)
+        value = self.v_lin(x)
+        scores = torch.bmm(query, key.transpose(1, 2)) * self._norm_fact
+        scores = nn.functional.softmax(scores, dim=-1)
+        
+        atten_result =  torch.bmm(scores,value)[0][0]
+                
+        return atten_result
+    
+    def act_ts(self, state, TS, action_num = 3):
+        
+        state_np = state
+        state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
+        q_value = self.forward(state).unsqueeze(0)
+        q_value_np = q_value.detach().numpy()[0]
+        
+        for act in range(action_num):
+            if not TS.in_TS(state_np,np.array(act)):
+                q_value_np[act] = -1000
+                
+        print(q_value_np)
+        action = np.argmax(q_value_np)
+        return action
+        
+    def act_ts_explore(self, state, encoded_state, TS, action_num = 3, c = 5):
+        
+        state_np = state
+        state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
+        q_value = self.forward(state).unsqueeze(0)
+        q_value_np = q_value.detach().numpy()[0]
+        
+        N_a = TS.get_state_num(encoded_state)
+        act_value = []
+        for act in range(action_num):
+            if N_a[act] == 0:
+                N_a[act] = 1
+            act_value.append(q_value_np[act]+c*math.sqrt(math.log(sum(N_a))/N_a[act]))
+        
+        action = np.argmax(np.array(act_value))
+        print(action, np.around(act_value,1), np.around(q_value_np,1), N_a)
+        
+        return action
+        
+    def act(self, state, epsilon, N_a, action_num = 3, c = 5):
         
         state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
         q_value = self.forward(state).unsqueeze(0)
         # print("q_value", q_value.unsqueeze(0))
-        N_a = np.array([5,10,15])
-        q_value_np = q_value.detach().numpy()[0]
-        act_value = []
+        # q_value_np = q_value.detach().numpy()[0]
         # print(q_value_np, q_value_np[0])
-        for act in range(action_num):
-            act_value.append(q_value_np[act]+c*math.sqrt(math.log(sum(N_a))/N_a[act]))
+        # for act in range(action_num):
+        #     act_value.append(q_value_np[act]+c*math.sqrt(math.log(sum(N_a))/N_a[act]))
         
-        # print(act_value)
+        # action = np.argmax(np.array(act_value))
+        # print("action:", action, act_value, q_value_np)
         
+        # action  = q_value.max(1)[1].data[0]
         if random.random() > epsilon:
             action  = q_value.max(1)[1].data[0]
         else:
@@ -104,41 +153,57 @@ class DQN():
         self.batch_size = batch_size
         self.optimizer = optim.Adam(self.current_model.parameters())
         self.replay_buffer = NaivePrioritizedBuffer(1000000)
+        self.TS = Trustset()
         # self.replay_buffer = Replay_Buffer(obs_shape=env.observation_space.shape,
         #     action_shape=env.action_space.shape, # discrete, 1 dimension!
         #     capacity= 1000000,
         #     batch_size= self.batch_size,
-        #     device=self.device)                
-
+        #     device=self.device)
         
     def compute_td_loss(self, batch_size, beta, gamma):
         for i in range(batch_size):
             
             state, action, reward, next_state, done, indices, weights = self.replay_buffer.sample(1, beta) 
-            # print("++++",state,action,reward,next_state)
+            
+            encoded_state = self.get_encoded_state(state)
+            encoded_next_state = self.get_encoded_state(next_state)
+            
+            self.TS.add_data(encoded_state, np.array(action), np.array(reward))
+            
+            no_data_punishment = -10
+            if self.TS.in_TS(encoded_next_state):
+                no_data_punishment = 0
+            
             state      = Variable(torch.FloatTensor(np.float32(state)))
             next_state = Variable(torch.FloatTensor(np.float32(next_state)))
             action     = Variable(torch.LongTensor(action))
             reward     = Variable(torch.FloatTensor(reward))
             done       = Variable(torch.FloatTensor(done))
             weights    = Variable(torch.FloatTensor(weights))
-
             q_values      = self.current_model(state)
+            
             next_q_values = self.target_model(next_state)
             q_value          = (q_values.unsqueeze(0)).gather(1, action.unsqueeze(1)).squeeze(1)
             next_q_value     = next_q_values.unsqueeze(0).max(1)[0]
-            expected_q_value = reward + gamma * next_q_value * (1 - done)
+            
+            expected_q_value = reward + gamma * next_q_value * (1 - done) + no_data_punishment
             # print(next_q_value, expected_q_value)
             loss  = (q_value - expected_q_value.detach()).pow(2) * weights
             prios = loss + 1e-5
             loss  = loss.mean()
-                
+            
             self.optimizer.zero_grad()
             loss.backward()
             self.replay_buffer.update_priorities(indices, prios.data.cpu().numpy())
             self.optimizer.step()
         
         return loss
+    
+    def get_encoded_state(self, state):
+        
+        state = Variable(torch.FloatTensor(np.float32(state)))
+        
+        return self.target_model.encoded_state(state).detach().numpy()
     
     def get_trained_value_sa(self, state, action):
         
@@ -206,14 +271,18 @@ class DQN():
         
         while frame_idx < load_step+num_frames + 1:
             frame_idx = frame_idx + 1
-            
             obs = np.array(obs)
-            epsilon = self.epsilon_by_frame(frame_idx)
+            encoded_obs = self.get_encoded_state(np.array([obs]))
+            # epsilon = self.epsilon_by_frame(frame_idx)
             if dqn_action is None:
-                dqn_action = self.current_model.act(obs, epsilon)
+                # dqn_action = self.current_model.act(obs, epsilon, N_a)
+                # dqn_action = self.current_model.act_ts(obs, self.TS)
+                # dqn_action = self.current_model.act_ts_explore(obs, self.TS)
+                dqn_action = self.current_model.act_ts_explore(obs, encoded_obs, self.TS)
+
             obs_tensor = Variable(torch.FloatTensor(np.float32(obs))).unsqueeze(0)
             ego_attention = self.current_model.ego_attention(obs_tensor).detach().numpy()
-            
+                        
             obs_ori = np.array(obs_ori)
             dynamic_map.update_map_from_obs(obs_ori, self.env)
             rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)

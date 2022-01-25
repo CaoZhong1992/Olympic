@@ -176,7 +176,7 @@ class JunctionTrajectoryPlanner(object):
             desired_speed = self.c_speed
         
         if CP_action == 2:
-            desired_speed = min(20/3.6, self.c_speed + 3)
+            desired_speed = min(30/3.6, self.c_speed + 3)
         
         
         if True: # CP_action == 0:

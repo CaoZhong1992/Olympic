@@ -296,7 +296,7 @@ class CarEnv_05_Round:
                     continue
                 thickness = float(max(0.2, abs(norm_ego_attention[v_i+1])))
                 if norm_ego_attention[v_i+1] < 0:
-                    color = carla.Color(r=211, g=211, b=211, a=255)
+                    color = carla.Color(r=13, g=13, b=13, a=255)
                 else:
                     color = carla.Color(r=255, g=0, b=0, a=255)
                 
@@ -358,7 +358,7 @@ class CarEnv_05_Round:
         closest_vehicle_list = []
         d_list = np.array(d_list)
           
-        while len(closest_vehicle_list)<3:
+        while len(closest_vehicle_list)<2:
             if len(d_list) == 0:
                 return closest_vehicle_list
             close_id = np.argmin(d_list[:,1])
@@ -410,7 +410,7 @@ class CarEnv_05_Round:
         self.record_information_txt()
         self.task_num += 1
         self.case_id += 1
-
+        
         return state, state_ori
     
     def step(self, action, **kw):
@@ -419,8 +419,8 @@ class CarEnv_05_Round:
         brake = max(0,-float(action[0])) # range [0,1]
         steer = action[1] # range [-1,1]
         self.ego_vehicle.apply_control(carla.VehicleControl(throttle = throttle, brake = brake, steer = steer))
-        # self.spawn_random_veh()
-        # self.draw_attenton(kw['ego_attention'])
+        self.spawn_random_veh()
+        self.draw_attenton(kw['ego_attention'])
         # print("ego_attention:", kw['ego_attention'])
         
         self.world.tick()
@@ -446,7 +446,7 @@ class CarEnv_05_Round:
             done = True
             reward = 0.0
             print("[CARLA]: Stuck!")
-
+        
         return state, reward, done, state_ori
 
     def reward_function(self, state):
