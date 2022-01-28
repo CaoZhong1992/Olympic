@@ -14,6 +14,7 @@ from Agent.drl_library.dqn.replay_buffer import NaivePrioritizedBuffer, Replay_B
 from Agent.zzz.JunctionTrajectoryPlanner import JunctionTrajectoryPlanner
 from Agent.zzz.controller import Controller
 from Agent.zzz.dynamic_map import DynamicMap
+from Planning_library.trustset import TrustHybridset
 
 USE_CUDA = torch.cuda.is_available()
 Variable = lambda *args, **kwargs: autograd.Variable(*args, **kwargs).cuda() if USE_CUDA else autograd.Variable(*args, **kwargs)
@@ -61,8 +62,8 @@ class DQN():
         #     action_shape=env.action_space.shape, # discrete, 1 dimension!
         #     capacity= 1000000,
         #     batch_size= self.batch_size,
-        #     device=self.device)                
-
+        #     device=self.device)      
+        self.TS = TrustHybridset(10, 11)
         
     def compute_td_loss(self, batch_size, beta, gamma):
         state, action, reward, next_state, done, indices, weights = self.replay_buffer.sample(batch_size, beta) 
@@ -140,6 +141,8 @@ class DQN():
 
             # self.replay_buffer.add(obs, np.array([dqn_action]), np.array([reward]), new_obs, np.array([done]))
             self.replay_buffer.push(obs, dqn_action, reward, new_obs, done)
+
+            self.TS.add_data_during_data_collection(obs, dqn_action, reward, done)
             
             obs = new_obs
             obs_ori = new_obs_ori

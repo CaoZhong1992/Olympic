@@ -104,7 +104,7 @@ class CarEnv_03_Two_Lane:
         # self.low  = np.array([0,  0, 0, 0, 0,125, 189, -1, -1, -1,128, 195, -2, -1,-1, 125, 195, -2,-1,-1], dtype=np.float64)
         # self.high = np.array([1,  1, 1, 1, 1,130, 194,  2,  1, 1,  132,  200,  1,  2, 1,  130,  200 , 1, 2, 1], dtype=np.float64)    
         self.observation_space = spaces.Box(self.low, self.high, dtype=np.float64)
-        self.state_dimension = 20
+        self.state_dimension = 10
 
         # Ego Vehicle Setting
         global start_point
