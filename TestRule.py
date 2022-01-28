@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from Test_Scenarios.TestScenario_CarEnv_05_Round import CarEnv_05_Round
+from Test_Scenarios.TestScenario_Town03_two_lane import CarEnv_03_Two_Lane
 from Agent.zzz.JunctionTrajectoryPlanner import JunctionTrajectoryPlanner
 from Agent.zzz.controller import Controller
 from Agent.zzz.dynamic_map import DynamicMap
@@ -34,7 +35,7 @@ if __name__ == '__main__':
 
     # Create environment
     
-    env = CarEnv_05_Round()
+    env = CarEnv_03_Two_Lane()
 
     # Create Agent
     trajectory_planner = JunctionTrajectoryPlanner()
@@ -63,7 +64,6 @@ if __name__ == '__main__':
             obs = np.array(obs)
             dynamic_map.update_map_from_obs(obs, env)
             rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
-            
             rule_trajectory = trajectory_planner.trajectory_update_CP(action, rule_trajectory)
             # Control
             control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
@@ -72,8 +72,7 @@ if __name__ == '__main__':
                 
             obs = new_obs
             episode_reward += reward  
-            
-            
+         
             if done:
                 trajectory_planner.clear_buff(clean_csp=True)
                 task_time += 1

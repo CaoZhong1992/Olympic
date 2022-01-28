@@ -105,30 +105,34 @@ class DynamicMap():
             self.vehicles.append(vehicle)
 
         # print("[Dynamic Map]: Add env vehicles num", len(self.vehicles))
-
-
-        # For round driving
-        ego_to_start = math.sqrt((self.ego_vehicle.x - env.start_point.location.x) **2 +(self.ego_vehicle.y - env.start_point.location.y) **2)
-        ego_to_end = math.sqrt((self.ego_vehicle.x - env.goal_point.location.x) **2 +(self.ego_vehicle.y - env.goal_point.location.y) **2)
-        if ego_to_start < 10 and self.first_route_update == False:
-            self.lanes = []
-            self.lanes_id = []
+        if len(self.lanes) == 0:
             self.lanes.append(env.ref_path)
             self.lanes_id.append(0)
             self.lanes_updated = True
-            self.first_route_update = True
-            self.second_route_update = False
             env.real_time_ref_path_array = env.ref_path_array
+
+        # For round driving
+        # ego_to_start = math.sqrt((self.ego_vehicle.x - env.start_point.location.x) **2 +(self.ego_vehicle.y - env.start_point.location.y) **2)
+        # ego_to_end = math.sqrt((self.ego_vehicle.x - env.goal_point.location.x) **2 +(self.ego_vehicle.y - env.goal_point.location.y) **2)
+        # if ego_to_start < 10 and self.first_route_update == False:
+        #     self.lanes = []
+        #     self.lanes_id = []
+        #     self.lanes.append(env.ref_path)
+        #     self.lanes_id.append(0)
+        #     self.lanes_updated = True
+        #     self.first_route_update = True
+        #     self.second_route_update = False
+        #     env.real_time_ref_path_array = env.ref_path_array
             
-        if ego_to_end < 10 and self.second_route_update == False:
-            self.lanes = []
-            self.lanes_id = []
-            self.lanes.append(env.ref_path2)
-            self.lanes_id.append(0)
-            self.lanes_updated = True
-            self.second_route_update = True
-            self.first_route_update = False
-            env.real_time_ref_path_array = env.ref_path_array2
+        # if ego_to_end < 10 and self.second_route_update == False:
+        #     self.lanes = []
+        #     self.lanes_id = []
+        #     self.lanes.append(env.ref_path2)
+        #     self.lanes_id.append(0)
+        #     self.lanes_updated = True
+        #     self.second_route_update = True
+        #     self.first_route_update = False
+        #     env.real_time_ref_path_array = env.ref_path_array2
 
     def init_dynamic_map(self):
         self.vehicles = []

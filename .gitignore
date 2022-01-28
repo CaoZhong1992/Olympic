@@ -6,3 +6,4 @@ record.txt
 trustset/
 
 **/__pycache__
+*.pyc

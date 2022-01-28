@@ -282,138 +282,137 @@ class DQN():
         frame_idx = load_step
         key_data = None
         
-        while frame_idx < load_step+num_frames + 1:
-            frame_idx = frame_idx + 1
-            obs = np.array(obs)
-            encoded_obs = self.get_encoded_state(np.array([obs]))
-            # epsilon = self.epsilon_by_frame(frame_idx)
-            if dqn_action is None:
-                # dqn_action = self.current_model.act(obs, epsilon, N_a)
-                # dqn_action = self.current_model.act_ts(obs, self.TS)
-                # dqn_action = self.current_model.act_ts_explore(obs, self.TS)
-                dqn_action = self.current_model.act_ts_explore(obs, encoded_obs, self.TS)
+        # while frame_idx < load_step+num_frames + 1:
+        #     frame_idx = frame_idx + 1
+        #     obs = np.array(obs)
+        #     encoded_obs = self.get_encoded_state(np.array([obs]))
+        #     # epsilon = self.epsilon_by_frame(frame_idx)
+        #     if dqn_action is None:
+        #         # dqn_action = self.current_model.act(obs, epsilon, N_a)
+        #         # dqn_action = self.current_model.act_ts(obs, self.TS)
+        #         # dqn_action = self.current_model.act_ts_explore(obs, self.TS)
+        #         dqn_action = self.current_model.act_ts_explore(obs, encoded_obs, self.TS)
 
-            obs_tensor = Variable(torch.FloatTensor(np.float32(obs))).unsqueeze(0)
-            ego_attention = self.current_model.ego_attention(obs_tensor).detach().numpy()
+        #     obs_tensor = Variable(torch.FloatTensor(np.float32(obs))).unsqueeze(0)
+        #     ego_attention = self.current_model.ego_attention(obs_tensor).detach().numpy()
                         
-            obs_ori = np.array(obs_ori)
-            dynamic_map.update_map_from_obs(obs_ori, self.env)
-            rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
-            rule_trajectory = trajectory_planner.trajectory_update_CP(dqn_action, rule_trajectory)
-            control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
-            action = [control_action.acc, control_action.steering]
+        #     obs_ori = np.array(obs_ori)
+        #     dynamic_map.update_map_from_obs(obs_ori, self.env)
+        #     rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
+        #     rule_trajectory = trajectory_planner.trajectory_update_CP(dqn_action, rule_trajectory)
+        #     control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
+        #     action = [control_action.acc, control_action.steering]
+            
+        #     new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
+        #     passed_data.append([obs, reward])
+        #     sum_reward = sum_reward+reward
+            
+        #     obs = new_obs
+        #     obs_ori = new_obs_ori
+            
+        #     episode_reward += reward
+        
+        #     if sum_reward > r_thres or len(passed_data)>pass_thres or done:
+        #         for data in passed_data:
+        #             self.replay_buffer.push(data[0], dqn_action, sum_reward, new_obs, done)
+        #             sum_reward = sum_reward - data[1]
+        #         # print("------")
+        #         # replay_buffer_len = len(self.replay_buffer)
+        #         # passed_data_len = len(passed_data)
+        #         # print(self.replay_buffer.get(replay_buffer_len-passed_data_len))
+                
+        #         # key_data = self.replay_buffer.get(replay_buffer_len-passed_data_len)
+        #         # print("before training:", key_data[0], key_data[1])
+        #         # print(self.get_trained_value_sa(key_data[0], key_data[1]))
+        #         # print(self.get_expected_value(key_data[0],key_data[1],key_data[2],key_data[3],key_data[4],gamma))
+                
+        #         dqn_action = None
+        #         sum_reward = 0
+        #         passed_data = []
+                
+        #         if done:
+        #             obs, obs_ori = self.env.reset()
+        #             trajectory_planner.clear_buff(clean_csp=True)
+        #             all_rewards.append(episode_reward)
+        #             episode_reward = 0
+                    
+        #     if (frame_idx) > self.batch_size:
+        #         beta = self.beta_by_frame(frame_idx)
+        #         loss = self.compute_td_loss(self.batch_size, beta, gamma)
+            
+        #     if (frame_idx) % 10000 == 0:
+        #         self.update_target(self.current_model, self.target_model)
+        #         self.save(frame_idx)
+            
+        #     # if key_data is not None:
+        #     #     print("after training:")
+        #     #     print(self.get_trained_value_sa(key_data[0], key_data[1]))
+        #     #     key_data = None
+                
+            
+        for frame_idx in range(load_step, load_step+num_frames + 1):
+            
+            dqn_action = None
+            sum_reward = 0
+            passed_data = []
+            
+            while True:
+                obs = np.array(obs)
+                epsilon = self.epsilon_by_frame(frame_idx)
+                if dqn_action is None:
+                    dqn_action = self.current_model.act(obs, epsilon)
+                obs_tensor = Variable(torch.FloatTensor(np.float32(obs))).unsqueeze(0)
+                ego_attention = self.current_model.ego_attention(obs_tensor).detach().numpy()
+                
+                obs_ori = np.array(obs_ori)
+                dynamic_map.update_map_from_obs(obs_ori, self.env)
+                rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
+                rule_trajectory = trajectory_planner.trajectory_update_CP(dqn_action, rule_trajectory)
+                control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
+                action = [control_action.acc, control_action.steering]
+                
+                new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
+                passed_data.append([obs, reward])
+                sum_reward = sum_reward+reward
+                
+                obs = new_obs
+                obs_ori = new_obs_ori
+            
+                if sum_reward > r_thres or len(passed_data)>pass_thres or done:
+                    for data in passed_data:
+                        self.replay_buffer.push(data[0], dqn_action, sum_reward, new_obs, done)
+                        sum_reward = sum_reward - data[1]
+                    break
             
             new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
-            passed_data.append([obs, reward])
-            sum_reward = sum_reward+reward
+            print("[DQN]: ----> RL Action",dqn_action)
+
+            # self.replay_buffer.add(obs, np.array([dqn_action]), np.array([reward]), new_obs, np.array([done]))
+            self.replay_buffer.push(obs, dqn_action, reward, new_obs, done)
             
             obs = new_obs
-            obs_ori = new_obs_ori
             
             episode_reward += reward
-        
-            if sum_reward > r_thres or len(passed_data)>pass_thres or done:
-                for data in passed_data:
-                    self.replay_buffer.push(data[0], dqn_action, sum_reward, new_obs, done)
-                    sum_reward = sum_reward - data[1]
-                # print("------")
-                # replay_buffer_len = len(self.replay_buffer)
-                # passed_data_len = len(passed_data)
-                # print(self.replay_buffer.get(replay_buffer_len-passed_data_len))
+            
+            if done:
+                obs = self.env.reset()
+                trajectory_planner.clear_buff(clean_csp=True)
+
+                all_rewards.append(episode_reward)
+                episode_reward = 0
                 
-                # key_data = self.replay_buffer.get(replay_buffer_len-passed_data_len)
-                # print("before training:", key_data[0], key_data[1])
-                # print(self.get_trained_value_sa(key_data[0], key_data[1]))
-                # print(self.get_expected_value(key_data[0],key_data[1],key_data[2],key_data[3],key_data[4],gamma))
-                
-                dqn_action = None
-                sum_reward = 0
-                passed_data = []
-                
-                if done:
-                    obs, obs_ori = self.env.reset()
-                    trajectory_planner.clear_buff(clean_csp=True)
-                    all_rewards.append(episode_reward)
-                    episode_reward = 0
-                    
             if (frame_idx) > self.batch_size:
                 beta = self.beta_by_frame(frame_idx)
                 loss = self.compute_td_loss(self.batch_size, beta, gamma)
-            
+                
+                losses.append(loss.data[0])
+                
+            if frame_idx % 200 == 0:
+                plot(frame_idx, all_rewards, losses)
+                
             if (frame_idx) % 10000 == 0:
                 self.update_target(self.current_model, self.target_model)
                 self.save(frame_idx)
-            
-            # if key_data is not None:
-            #     print("after training:")
-            #     print(self.get_trained_value_sa(key_data[0], key_data[1]))
-            #     key_data = None
-                
-            
-        # for frame_idx in range(load_step, load_step+num_frames + 1):
-            
-        #     dqn_action = None
-        #     sum_reward = 0
-        #     passed_data = []
-            
-        #     while True:
-        #         obs = np.array(obs)
-        #         epsilon = self.epsilon_by_frame(frame_idx)
-        #         if dqn_action is None:
-        #             dqn_action = self.current_model.act(obs, epsilon)
-        #         obs_tensor = Variable(torch.FloatTensor(np.float32(obs))).unsqueeze(0)
-        #         ego_attention = self.current_model.ego_attention(obs_tensor).detach().numpy()
-                
-        #         obs_ori = np.array(obs_ori)
-        #         dynamic_map.update_map_from_obs(obs_ori, self.env)
-        #         rule_trajectory, action = trajectory_planner.trajectory_update(dynamic_map)
-        #         rule_trajectory = trajectory_planner.trajectory_update_CP(dqn_action, rule_trajectory)
-        #         control_action =  controller.get_control(dynamic_map,  rule_trajectory.trajectory, rule_trajectory.desired_speed)
-        #         action = [control_action.acc, control_action.steering]
-                
-        #         new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
-        #         passed_data.append([obs, reward])
-        #         sum_reward = sum_reward+reward
-                
-        #         obs = new_obs
-        #         obs_ori = new_obs_ori
-            
-        #         if sum_reward > r_thres or len(passed_data)>pass_thres or done:
-        #             for data in passed_data:
-        #                 self.replay_buffer.push(data[0], dqn_action, sum_reward, new_obs, done)
-        #                 sum_reward = sum_reward - data[1]
-        #             break
-            
-            # new_obs, reward, done, new_obs_ori = self.env.step(action, ego_attention = ego_attention)
-            # print("[DQN]: ----> RL Action",dqn_action)
-
-            # self.replay_buffer.add(obs, np.array([dqn_action]), np.array([reward]), new_obs, np.array([done]))
-            # self.replay_buffer.push(obs, dqn_action, reward, new_obs, done)
-            
-            # obs = new_obs
-            # obs_ori = new_obs_ori
-            
-            # episode_reward += reward
-            
-            # if done:
-            #     obs, obs_ori = self.env.reset()
-            #     trajectory_planner.clear_buff(clean_csp=True)
-
-            #     all_rewards.append(episode_reward)
-            #     episode_reward = 0
-                
-            # if (frame_idx) > self.batch_size:
-            #     beta = self.beta_by_frame(frame_idx)
-            #     loss = self.compute_td_loss(self.batch_size, beta, gamma)
-                
-                # losses.append(loss.data[0])
-                
-            # if frame_idx % 200 == 0:
-            #     plot(frame_idx, all_rewards, losses)
-                
-            # if (frame_idx) % 10000 == 0:
-            #     self.update_target(self.current_model, self.target_model)
-            #     self.save(frame_idx)
 
     def save(self, step):
         torch.save(

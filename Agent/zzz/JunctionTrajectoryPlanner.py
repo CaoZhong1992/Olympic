@@ -14,14 +14,14 @@ from Agent.zzz.cubic_spline_planner import Spline2D
 MAX_SPEED = 50.0 / 3.6  # maximum speed [m/s]
 MAX_ACCEL = 10.0  # maximum acceleration [m/ss]
 MAX_CURVATURE = 500.0  # maximum curvature [1/m]
-MAX_ROAD_WIDTH = 0   # maximum road width [m] # related to RL action space
+MAX_ROAD_WIDTH = 1.0   # maximum road width [m] # related to RL action space
 D_ROAD_W = 1  # road width sampling length [m]
 DT = 0.3  # time tick [s]
 MAXT = 4.2  # max prediction time [m]
 MINT = 4.0  # min prediction time [m]
 TARGET_SPEED = 30.0 / 3.6  # target speed [m/s]
-D_T_S = 5.0 / 3.6  # target speed sampling length [m/s]
-N_S_SAMPLE = 4  # sampling number of target speed
+D_T_S = 15.0 / 3.6  # target speed sampling length [m/s]
+N_S_SAMPLE = 1  # sampling number of target speed
 
 # Collision check
 OBSTACLES_CONSIDERED = 4
@@ -73,13 +73,7 @@ class JunctionTrajectoryPlanner(object):
         self.reference_path = None
         if clean_csp:
             self.csp = None
-    
-    def set_ROBOT_RADIUS(self, radius, move_gap):
-        self.radius = radius
-        self.move_gap = move_gap
-        self.target_speed = 15/3.6
-        self.dts = 5/3.6
-
+            
     def build_frenet_path(self, dynamic_map, clean_current_csp = False):
 
         if self.csp is None or clean_current_csp:
@@ -132,58 +126,23 @@ class JunctionTrajectoryPlanner(object):
         else:
             return None
 
-    # def generation_control_signal_of_action(self, DQN_action, dynamic_map):
-
-    #     if self.initialize(dynamic_map):
-    #         start_state = self.calculate_start_state(dynamic_map)
-    #         generated_trajectory, index = self.frenet_optimal_planning(self.csp, self.c_speed, start_state)
-            
-    #         if generated_trajectory is not None:
-    #             k = min(len(generated_trajectory.s_d),5)-1
-    #             trajectory_array_ori = np.c_[generated_trajectory.x, generated_trajectory.y]
-    #             trajectory_array = trajectory_array_ori #dense_polyline2d(trajectory_array_ori,1)
-    #             # self.last_trajectory_array_rule = trajectory_array
-    #             # self.last_trajectory_rule = generated_trajectory     
-    #             # print("[DQN]: ----> Werling Successful Planning")
-            
-    #         elif len(self.last_trajectory_rule.s_d) > 5 and self.c_speed > 1:
-    #             generated_trajectory = self.last_trajectory_rule
-    #             trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
-    #             # print("[DQN]: ----> Werling Fail to find a solution")
-
-    #         if DQN_action == 0:
-    #             desired_speed = self.c_speed - 2
-        
-    #         if DQN_action == 1:
-    #             desired_speed = self.c_speed
-        
-    #         if DQN_action == 2:
-    #             desired_speed = self.c_speed + 2
-                
-    #         desired_speed_array = [desired_speed] * len(trajectory_array)
-    #         print("DQN", len(desired_speed_array), len(trajectory_array))
-    #         print("DQN SPEED", desired_speed_array)
-    #         trajectory, velocity_trajectory = dense_polyline2d_withvelocity(trajectory_array, np.array(desired_speed_array), 0.2)
-    #         trajectory_action = TrajectoryAction(trajectory_array, velocity_trajectory)
-        
-            
     def trajectory_update_CP(self, CP_action, rule_trajectory, update=True):
         
+        # if CP_action == 0:
+        #     desired_speed = max(0, (self.c_speed - 3))
+        
+        # if CP_action == 1:
+        #     desired_speed = self.c_speed
+        
+        # if CP_action == 2:
+        #     desired_speed = min(30/3.6, self.c_speed + 3)
+        
+        
         if CP_action == 0:
-            desired_speed = max(0, (self.c_speed - 3))
-        
-        if CP_action == 1:
-            desired_speed = self.c_speed
-        
-        if CP_action == 2:
-            desired_speed = min(30/3.6, self.c_speed + 3)
-        
-        
-        if True: # CP_action == 0:
             # print("[CP]:----> Brake") 
             generated_trajectory =  self.all_trajectory[0][0]
             trajectory_array = np.c_[generated_trajectory.x, generated_trajectory.y]
-            trajectory_action = TrajectoryAction(trajectory_array, [desired_speed] * len(trajectory_array))
+            trajectory_action = TrajectoryAction(trajectory_array, [0] * len(trajectory_array))
             return trajectory_action       
         
            
@@ -350,11 +309,8 @@ class JunctionTrajectoryPlanner(object):
         c_d_dd = start_state.c_d_dd
 
         # generate path to each offset goal
-        if ONLY_SAMPLE_TO_LEFT:
-            left_sample_bound = D_ROAD_W
-        else:
-            left_sample_bound = MAX_ROAD_WIDTH 
-        for di in np.arange(-MAX_ROAD_WIDTH, left_sample_bound, D_ROAD_W):
+        left_sample_bound = 4 * MAX_ROAD_WIDTH 
+        for di in np.arange(-left_sample_bound, MAX_ROAD_WIDTH, D_ROAD_W):
 
             # Lateral motion planning
             for Ti in np.arange(MINT, MAXT, DT):
@@ -370,6 +326,7 @@ class JunctionTrajectoryPlanner(object):
 
                 # Loongitudinal motion planning (Velocity keeping)
                 for tv in np.arange(self.target_speed - self.dts * N_S_SAMPLE, self.target_speed + self.dts * N_S_SAMPLE, self.dts):
+                    # print("werling_sample",tv, Ti, di)
                     tfp = copy.deepcopy(fp)
                     lon_qp = quartic_polynomial(s0, c_speed, 0.0, tv, 0.0, Ti)
 
