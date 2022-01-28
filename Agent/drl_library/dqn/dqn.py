@@ -1,5 +1,6 @@
 
 import math, random
+from socket import TIPC_SRC_DROPPABLE
 
 import numpy as np
 
@@ -52,6 +53,18 @@ class Q_network(nn.Module):
         atten_result =  torch.bmm(scores,value)[0][0]
         return self.layers(atten_result)
     
+    def act_hybrid(self, state, TS, action_num = 8):
+        """
+        Main hybrid
+        """
+
+        TS_indexes = []
+
+        for act in range(action_num):
+            TS_indexes.append(TS.TS_ConfidenceValue(state, act))
+        
+        return np.argmax(np.array(TS_indexes))
+
     def ego_attention(self, x):
         # x contains n vehicle
         # query, key, value contain n number
