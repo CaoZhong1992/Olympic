@@ -164,18 +164,18 @@ class TrustHybridset(object):
                 os.remove("trustset/visited_state.txt")
             if osp.exists("trustset/visited_value.txt"):
                 os.remove("trustset/visited_value.txt")
-            # self.visited_state_value = []
+            self.visited_state_value = []
             self.visited_state_counter = 0
         else:
-            # self.visited_state_value = np.loadtxt("trustset/visited_value.txt")
-            # self.visited_state_value = self.visited_state_value.tolist()
+            self.visited_state_value = np.loadtxt("trustset/visited_value.txt")
+            self.visited_state_value = self.visited_state_value.tolist()
             self.visited_state_counter = len(self.visited_state_value)
 
         self.visited_state_outfile = open("trustset/visited_state.txt", "a")
         self.visited_state_format = " ".join(("%f",)*(self.state_dimension+1))+"\n"
 
-        # self.visited_value_outfile = open("trustset/visited_value.txt", "a")
-        # self.visited_value_format = " ".join(("%f",)*2)+"\n"
+        self.visited_value_outfile = open("trustset/visited_value.txt", "a")
+        self.visited_value_format = " ".join(("%f",)*1)+"\n"
 
         visited_state_tree_prop = rindex.Property()
         visited_state_tree_prop.dimension = self.state_dimension+1
