@@ -128,16 +128,6 @@ class JunctionTrajectoryPlanner(object):
 
     def trajectory_update_CP(self, CP_action, rule_trajectory, update=True):
         
-        # if CP_action == 0:
-        #     desired_speed = max(0, (self.c_speed - 3))
-        
-        # if CP_action == 1:
-        #     desired_speed = self.c_speed
-        
-        # if CP_action == 2:
-        #     desired_speed = min(30/3.6, self.c_speed + 3)
-        
-        
         if CP_action == 0:
             # print("[CP]:----> Brake") 
             generated_trajectory =  self.all_trajectory[0][0]

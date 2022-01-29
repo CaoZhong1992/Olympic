@@ -4,9 +4,12 @@ import os.path as osp
 import math
 import numpy as np
 from rtree import index as rindex
-from collections import deque
 
 import torch
+import torch.autograd as autograd 
+
+USE_CUDA = False#torch.cuda.is_available()
+Variable = lambda *args, **kwargs: autograd.Variable(*args, **kwargs).cuda() if USE_CUDA else autograd.Variable(*args, **kwargs)
 
 class Trustset(object):
     
@@ -134,15 +137,11 @@ class TrustHybridset(object):
                  action_num,
                  visited_times_thres = 30,
                  save_new_data = True,
-                 create_new_train_file = True,
-                 create_new_record_file = True,
-                 save_new_driving_data = True):
+                 create_new_train_file = True):
 
         self.visited_times_thres = visited_times_thres
         self.save_new_data = save_new_data
         self.create_new_train_file = create_new_train_file
-        self.create_new_record_file = create_new_record_file
-        self.save_new_driving_data = save_new_driving_data
         self.state_dimension = state_dimension
         self.action_num = action_num
         self.gamma = 0.95
@@ -189,8 +188,9 @@ class TrustHybridset(object):
         self.current_model = current_model
         self.traget_model = target_model
 
-    def hybrid_act(self, state):
-        rule_action = self.rule_policy(state)
+    def hybrid_act(self, state, rule_action):
+        
+        return rule_action
 
         action_value = []
 
@@ -202,15 +202,6 @@ class TrustHybridset(object):
 
         return np.argmax(np.array(action_value))
 
-    # def TS_ConfidenceValue(self, state, action):
-
-    #     # Hoeffiding
-    #     return self.HoeffidingLCB(state, action)
-
-    #     # Central Limitation
-    #     return self.GaussianLCB(state, action)
-    
-
     def _get_state_value(self, state, action):
         state_torch      = Variable(torch.FloatTensor(np.float32([state])))
         action_torch     = Variable(torch.LongTensor([action]))
@@ -219,13 +210,6 @@ class TrustHybridset(object):
         q_value_sa = q_value_s.gather(1, action_torch.unsqueeze(1)).squeeze(1)
 
         return q_value_sa.detach().numpy()[0]
-
-    def _is_trust_action_by_rules(self, state, action):
-          
-        if action == self.rule_policy(state):
-            return True
-        
-        return False
 
     def HoeffidingLCB(self, state, action):
 
